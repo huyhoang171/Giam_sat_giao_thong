@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lịch Sử Video Ghi Lại</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background-color: #f4f7f9;
+            --card-background: #ffffff;
+            --text-primary: #1a202c;
+            --text-secondary: #5a677d;
+            --border-color: #e2e8f0;
+            --primary-color: #3498db;
+            --primary-hover-color: #2980b9;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 2em;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            background-color: var(--card-background);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 2.5em;
+        }
+
+        h1 {
+            font-size: 1.75em;
+            font-weight: 700;
+            margin-bottom: 0.25em;
+        }
+
+        #current-location-title {
+            font-size: 1.1em;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 2em;
+            min-height: 1.5em; /* Giữ không gian ổn định khi tên địa điểm tải */
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 1em 1.25em;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background-color: #f9fafb;
+        }
+
+        .video-path {
+            font-family: monospace;
+            font-size: 0.9em;
+            color: #e74c3c;
+        }
+
+        .action-button {
+            display: inline-block;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 0.5em 1em;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
+        }
+
+        .action-button:hover {
+            background-color: var(--primary-hover-color);
+        }
+
+        #loader {
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 3em auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .message {
+            text-align: center;
+            padding: 3em;
+            color: var(--text-secondary);
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 1em; }
+            .container { padding: 1.5em; }
+            th, td { padding: 0.75em; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Lịch Sử Video Ghi Lại</h1>
+        <h2 id="current-location-title"></h2>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Thời Gian Ghi</th>
+                        <th>Đường Dẫn File</th>
+                        <th>Hành Động</th>
+                    </tr>
+                </thead>
+                <tbody id="recordings-table-body">
+                    </tbody>
+            </table>
+        </div>
+        <div id="loader"></div>
+    </div>
+
+    <script>
+        function convertUTCToVietnamTime(utcIsoString) {
+            if (!utcIsoString) return "N/A";
+            if (!utcIsoString.endsWith('Z')) utcIsoString += 'Z';
+            const date = new Date(utcIsoString);
+            if (isNaN(date.getTime())) return "Thời gian không hợp lệ";
+            return date.toLocaleString('vi-VN', {
+                timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            const tableBody = document.getElementById('recordings-table-body');
+            const locationTitle = document.getElementById('current-location-title');
+            const loader = document.getElementById('loader');
+
+            // 1. Lấy location_id từ URL
+            const params = new URLSearchParams(window.location.search);
+            const locationId = params.get('location_id');
+
+            if (!locationId) {
+                loader.style.display = 'none';
+                locationTitle.textContent = "Không có địa điểm nào được chọn.";
+                tableBody.innerHTML = `<tr><td colspan="3" class="message">Vui lòng quay lại trang bản đồ và chọn một địa điểm để xem lịch sử video.</td></tr>`;
+                return;
+            }
+
+            // Hàm để tải và hiển thị dữ liệu
+            async function loadPageData(id) {
+                loader.style.display = 'block';
+                tableBody.innerHTML = '';
+                locationTitle.textContent = 'Đang tải thông tin địa điểm...';
+
+                try {
+                    // 2. Tải thông tin địa điểm để lấy tên
+                    const locationResponse = await fetch(`/locations/${id}`);
+                    if (!locationResponse.ok) throw new Error('Không tìm thấy địa điểm.');
+                    const locationData = await locationResponse.json();
+                    locationTitle.textContent = `Tại: ${locationData.name}`;
+
+                    // 3. Tải danh sách video của địa điểm đó
+                    const recordingsResponse = await fetch(`/videos/location/${id}`);
+                    if (!recordingsResponse.ok) throw new Error('Không thể tải danh sách video.');
+                    const recordings = await recordingsResponse.json();
+
+                    loader.style.display = 'none';
+
+                    if (recordings.length === 0) {
+                        tableBody.innerHTML = `<tr><td colspan="3" class="message">Không có video nào được ghi cho địa điểm này.</td></tr>`;
+                        return;
+                    }
+
+                    recordings.forEach(rec => {
+                        const row = document.createElement('tr');
+                        const localTimestamp = convertUTCToVietnamTime(rec.timestamp);
+                        row.innerHTML = `
+                            <td>${localTimestamp}</td>
+                            <td><span class="video-path">${rec.video_path}</span></td>
+                            <td><a href="/${rec.video_path}" target="_blank" class="action-button">Xem Video</a></td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+
+                } catch (error) {
+                    loader.style.display = 'none';
+                    locationTitle.textContent = 'Đã xảy ra lỗi';
+                    tableBody.innerHTML = `<tr><td colspan="3" class="message">${error.message}</td></tr>`;
+                    console.error("Lỗi khi tải dữ liệu:", error);
+                }
+            }
+
+            // Bắt đầu tải dữ liệu
+            loadPageData(locationId);
+        });
+    </script>
+
+</body>
+</html>

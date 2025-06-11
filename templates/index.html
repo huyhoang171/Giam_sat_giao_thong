@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Giám sát Giao thông</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* --- General Styles --- */
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #7f8c8d;
+            --accent-color: #e67e22;
+            --success-color: #27ae60;
+            --danger-color: #c0392b;
+            --bg-color: #ecf0f1;
+            --sidebar-bg: #34495e;
+            --header-bg: #2c3e50;
+            --card-bg: #ffffff;
+            --text-color: #2c3e50;
+            --text-light: #ecf0f1;
+            --border-color: #ddd;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; height: 100vh; background-color: var(--bg-color); }
+
+        /* --- Header --- */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 25px;
+            background-color: var(--header-bg);
+            color: var(--text-light);
+            flex-shrink: 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1001;
+        }
+        .header .logo { font-size: 1.5em; font-weight: bold; }
+        #user-status-container { display: flex; align-items: center; gap: 10px; }
+        #user-status-container span { font-size: 0.95em; }
+
+        /* --- Main Container --- */
+        .main-container { display: flex; flex-grow: 1; overflow: hidden; }
+
+        /* --- Sidebar --- */
+        .sidebar {
+            width: 240px;
+            background-color: var(--sidebar-bg);
+            color: var(--text-light);
+            padding: 15px 0;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar .nav-title { padding: 0 15px 15px 15px; font-size: 1.2em; border-bottom: 1px solid #4a6278; }
+        .sidebar ul { list-style: none; }
+        .sidebar ul li a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            color: var(--text-light);
+            text-decoration: none;
+            transition: background-color 0.2s, border-left-color 0.2s;
+            border-left: 4px solid transparent;
+        }
+        .sidebar ul li a:hover { background-color: #4a6278; }
+        .sidebar ul li a.active { background-color: var(--header-bg); border-left-color: var(--primary-color); }
+
+        /* --- Main Content --- */
+        .main-content { flex-grow: 1; padding: 25px; overflow-y: auto; }
+        .page { display: none; }
+        .page.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        h1, h2 { margin-bottom: 20px; color: var(--text-color); }
+        .card { background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px;}
+
+        /* --- Buttons & Forms --- */
+        .btn {
+            display: inline-block;
+            padding: 10px 15px;
+            background-color: var(--primary-color);
+            color: white !important;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 5px;
+            text-decoration: none;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:active { transform: scale(0.98); }
+        .btn:last-child { margin-right: 0; }
+        .btn-secondary { background-color: var(--secondary-color); }
+        .btn-listen { background-color: var(--accent-color); }
+        .btn-logout { background-color: var(--danger-color); }
+        input[type="text"], input[type="password"], input[type="date"], select {
+             width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 1em; background-color: #fff;
+        }
+
+        /* --- Map Page --- */
+        .map-wrapper { position: relative; height: 75vh; }
+        #map-container { height: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        #location-list-container {
+            position: absolute; top: 10px; left: 10px; width: 220px; max-height: 300px;
+            overflow-y: auto; background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 1000; padding: 10px;
+        }
+        #location-list-container h4 { margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        #location-list { list-style: none; padding: 0; margin: 0; }
+        #location-list li { padding: 8px 10px; cursor: pointer; border-radius: 4px; transition: background-color 0.2s, color 0.2s; }
+        #location-list li:hover { background-color: var(--primary-color); color: white; }
+        #location-list li.active-stream { background-color: var(--success-color); color: white; font-weight: bold; }
+        .popup-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+        .popup-buttons .btn { width: 100%; text-align: center; }
+
+        /* --- Lookup & Stats Page Common Styles --- */
+        #lookup-form-container { display: flex; gap: 10px; margin-bottom: 20px; }
+        #plate-input { flex-grow: 1; margin: 0; }
+        .violation-card {
+            background-color: var(--sidebar-bg); color: var(--text-light);
+            padding: 20px; border-radius: 8px; margin-bottom: 20px;
+        }
+        .violation-card h3 { color: var(--accent-color); font-size: 1.5em; margin-bottom: 15px; }
+        .violation-card p { margin-bottom: 8px; }
+        .image-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; margin-top: 15px; }
+        .image-gallery div { text-align: center; }
+        .image-gallery img { max-width: 100%; height: auto; border-radius: 4px; background-color: #000; object-fit: contain; border: 1px solid #555; }
+        .image-label { font-size: 0.9em; color: var(--primary-color); margin-bottom: 5px; display: block; font-weight: bold; }
+        #lookup-status, #stats-status { text-align: center; font-size: 1.1em; color: #666; padding: 20px; }
+        .image-link { display: block; }
+
+
+        /* --- Stats Page --- */
+        #chart-controls { margin-bottom: 20px; display: flex; gap: 10px; }
+        #chart-controls .chart-toggle-btn { background-color: var(--secondary-color); }
+        #chart-controls .chart-toggle-btn.active { background-color: var(--primary-color); font-weight: bold; }
+        .filter-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: flex-end;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .filter-group { display: flex; flex-direction: column; flex: 1; min-width: 180px; }
+        .filter-group label { margin-bottom: 5px; font-weight: bold; font-size: 0.9em; color: #555; }
+        .filter-group input, .filter-group select { margin: 0; }
+        #apply-filters-btn { height: 42px; }
+
+
+        /* --- Utility Classes --- */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <div class="logo">Giám sát giao thông</div>
+        <div id="user-status-container"></div>
+    </header>
+
+    <div class="main-container">
+        <nav class="sidebar">
+
+            <ul>
+                <li><a href="#" class="nav-link active" data-page="map">🗺️ Bản đồ Giám sát</a></li>
+                <li><a href="#" class="nav-link protected-link hidden" data-page="lookup">🔍 Tra cứu Vi phạm</a></li>
+                <li><a href="#" class="nav-link protected-link hidden" data-page="stats">📊 Thống kê Vi phạm</a></li>
+            </ul>
+        </nav>
+
+        <main class="main-content">
+            <div id="page-map" class="page active">
+                <h1>Bản đồ Phân bố Hệ thống Giám sát</h1>
+                <div class="map-wrapper">
+                    <div id="map-container"></div>
+                    <div id="location-list-container">
+                        <h4>Danh sách Vị trí</h4>
+                        <ul id="location-list"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-lookup" class="page">
+                <h1>Tra cứu Vi phạm theo Biển số xe</h1>
+                <div class="card">
+                    <div id="lookup-form-container">
+                        <input type="text" id="plate-input" placeholder="Nhập biển số xe (ví dụ: 43A12345)">
+                        <button id="lookup-button" class="btn">Tra cứu</button>
+                    </div>
+                </div>
+                <div id="lookup-results">
+                    <p id="lookup-status">Vui lòng nhập biển số và nhấn tra cứu.</p>
+                </div>
+            </div>
+
+            <div id="page-stats" class="page">
+                <h1>Thống kê Vi phạm</h1>
+                <div class="card">
+                    <div id="chart-controls">
+                        <button class="btn chart-toggle-btn active" data-chart="time">Theo Thời gian</button>
+                        <button class="btn chart-toggle-btn" data-chart="location">Theo Vị trí</button>
+                    </div>
+                    <canvas id="violations-chart"></canvas>
+                </div>
+                <div class="card">
+                    <h2>Danh sách Vi phạm chi tiết</h2>
+                    <div class="filter-controls">
+                        <div class="filter-group">
+                            <label for="location-filter">Vị trí</label>
+                            <select id="location-filter">
+                                <option value="all">Tất cả các vị trí</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="start-date-filter">Từ ngày</label>
+                            <input type="date" id="start-date-filter">
+                        </div>
+                        <div class="filter-group">
+                            <label for="end-date-filter">Đến ngày</label>
+                            <input type="date" id="end-date-filter">
+                        </div>
+                        <button id="apply-filters-btn" class="btn">Lọc</button>
+                    </div>
+                    <div id="stats-violation-list">
+                         <p id="stats-status">Đang tải dữ liệu...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-login" class="page">
+                <h1>Đăng nhập hệ thống</h1>
+                <div class="card" style="max-width: 500px; margin: 20px auto;">
+                    <form id="login-form">
+                        <input type="text" id="login-username" placeholder="Tên đăng nhập" required>
+                        <input type="password" id="login-password" placeholder="Mật khẩu" required>
+                        <button type="submit" class="btn">Đăng nhập</button>
+                    </form>
+                </div>
+             </div>
+
+            <div id="page-register" class="page">
+                <h1>Đăng ký tài khoản</h1>
+                <div class="card" style="max-width: 500px; margin: 20px auto;">
+                    <form id="register-form">
+                        <input type="text" id="reg-username" placeholder="Tên đăng nhập" required>
+                        <input type="password" id="reg-password" placeholder="Mật khẩu" required>
+                        <input type="password" id="reg-password-confirm" placeholder="Nhập lại mật khẩu" required>
+                        <button type="submit" class="btn">Đăng ký</button>
+                    </form>
+                </div>
+             </div>
+        </main>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // --- State & Variables ---
+    let map;
+    let violationsChart;
+    let mapMarkers = {};
+    let currentStreamLocationId = null;
+    let allLocations = [];
+    let allViolationsData = [];
+    // DOM Elements
+    const pages = document.querySelectorAll('.page');
+    const navLinks = document.querySelectorAll('.nav-link');
+    const userStatusContainer = document.getElementById('user-status-container');
+    const protectedLinks = document.querySelectorAll('.protected-link');
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    // Tra cứu
+    const lookupButton = document.getElementById('lookup-button');
+    const plateInput = document.getElementById('plate-input');
+    // Thống kê
+    const chartControls = document.getElementById('chart-controls');
+    const applyFiltersBtn = document.getElementById('apply-filters-btn');
+
+    // --- Core Functions (giữ nguyên) ---
+    function showPage(pageId) {
+        if(document.querySelector(`.nav-link[data-page="${pageId}"]`)?.getAttribute('target') === '_blank') return;
+        pages.forEach(p => p.classList.remove('active'));
+        document.getElementById(`page-${pageId}`)?.classList.add('active');
+        navLinks.forEach(nav => nav.classList.toggle('active', nav.dataset.page === pageId));
+        if (pageId === 'map' && !map) initMap();
+        if (pageId === 'stats' && isLoggedIn() && allViolationsData.length === 0) loadStatistics();
+    }
+    function updateAuthUI(isUserLoggedIn) {
+        if (isUserLoggedIn) {
+            const user = JSON.parse(localStorage.getItem('user'));
+            userStatusContainer.innerHTML = `<span>Xin chào, <strong>${user.username}</strong></span> <button id="logout-btn" class="btn btn-logout">Đăng xuất</button>`;
+            document.getElementById('logout-btn').addEventListener('click', logout);
+            protectedLinks.forEach(link => link.classList.remove('hidden'));
+        } else {
+            userStatusContainer.innerHTML = `<button id="register-btn" class="btn btn-secondary">Đăng ký</button><button id="login-btn" class="btn">Đăng nhập</button>`;
+            document.getElementById('login-btn').addEventListener('click', () => showPage('login'));
+            document.getElementById('register-btn').addEventListener('click', () => showPage('register'));
+            protectedLinks.forEach(link => link.classList.add('hidden'));
+            const activePage = document.querySelector('.page.active')?.id.replace('page-', '');
+            if (['lookup', 'stats'].includes(activePage)) showPage('map');
+        }
+    }
+    function isLoggedIn() { return !!localStorage.getItem('accessToken'); }
+    async function checkLoginStatus() {
+        const token = localStorage.getItem('accessToken');
+        if (!token) { updateAuthUI(false); return; }
+        try {
+            const response = await fetch('/users/me/', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (response.ok) {
+                const user = await response.json();
+                localStorage.setItem('user', JSON.stringify(user));
+                updateAuthUI(true);
+            } else { logout(); }
+        } catch (error) { console.error("Connection error:", error); updateAuthUI(false); }
+    }
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value;
+        const password = document.getElementById('login-password').value;
+        const formData = new URLSearchParams({ username, password });
+        try {
+            const response = await fetch('/token', { method: 'POST', body: formData });
+            if (response.ok) {
+                const data = await response.json();
+                localStorage.setItem('accessToken', data.access_token);
+                await checkLoginStatus();
+                showPage('map');
+            } else { alert('Tên đăng nhập hoặc mật khẩu không đúng.'); }
+        } catch (error) { alert('Lỗi kết nối tới server.'); }
+    });
+
+    // --- THAY ĐỔI: Cập nhật logic Form Đăng ký ---
+    registerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('reg-username').value;
+        const password = document.getElementById('reg-password').value;
+        const confirmPassword = document.getElementById('reg-password-confirm').value;
+
+        // Kiểm tra mật khẩu khớp nhau
+        if (password !== confirmPassword) {
+            alert('Mật khẩu nhập lại không khớp. Vui lòng thử lại.');
+            return; // Dừng thực thi nếu không khớp
+        }
+
+        try {
+            const response = await fetch('/register/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }) // Chỉ gửi username và password
+            });
+            if (response.ok) {
+                alert('Đăng ký thành công! Vui lòng đăng nhập.');
+                showPage('login');
+            } else {
+                const error = await response.json();
+                alert(`Lỗi: ${error.detail}`);
+            }
+        } catch(error) {
+            alert('Đã xảy ra lỗi kết nối.');
+        }
+    });
+
+    function logout() {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('user');
+        allViolationsData = [];
+        updateAuthUI(false);
+        showPage('map');
+    }
+
+    // --- Map Logic (giữ nguyên) ---
+    function initMap() {
+        if(map) return;
+        map = L.map('map-container').setView([16.0544, 108.2022], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+        loadMapMarkers();
+    }
+    function getPopupContent(location, activeStreamId) {
+        const watchLiveButton = `<a href="/live" target="_blank" class="btn protected-action">Xem trực tiếp</a>`;
+        const listenButton = `<button class="btn btn-listen protected-action" data-location-id="${location.id}">Lắng nghe</button>`;
+        const recordingsButton = `<a href="/recordings?location_id=${location.id}" target="_blank" class="btn btn-secondary">Xem lại</a>`;
+        return `<b>${location.name}</b><div class="popup-buttons">${location.id === activeStreamId ? watchLiveButton : listenButton}${recordingsButton}</div>`;
+    }
+    function renderLocationList(locations, activeId) {
+        const listElement = document.getElementById('location-list');
+        listElement.innerHTML = '';
+        const sortedLocations = [...locations].sort((a, b) => {
+            if (a.id === activeId) return -1;
+            if (b.id === activeId) return 1;
+            return a.name.localeCompare(b.name, 'vi');
+        });
+        sortedLocations.forEach(loc => {
+            const listItem = document.createElement('li');
+            const marker = mapMarkers[loc.id];
+            listItem.textContent = loc.id === activeId ? `▶️ ${loc.name}` : loc.name;
+            if (loc.id === activeId) listItem.classList.add('active-stream');
+            listItem.addEventListener('click', () => { if (marker) { map.setView(marker.getLatLng(), 15); marker.openPopup(); } });
+            listElement.appendChild(listItem);
+        });
+    }
+    async function loadMapMarkers() {
+        try {
+            const response = await fetch('/locations/');
+            if (!response.ok) throw new Error('Failed to fetch locations');
+            allLocations = await response.json();
+            populateLocationFilter();
+            Object.values(mapMarkers).forEach(marker => marker.remove());
+            mapMarkers = {};
+            allLocations.forEach(loc => {
+                if (loc.latitude != null && loc.longitude != null) {
+                    const popupContent = getPopupContent(loc, currentStreamLocationId);
+                    const marker = L.marker([loc.latitude, loc.longitude]).addTo(map).bindPopup(popupContent);
+                    marker.locationData = loc;
+                    mapMarkers[loc.id] = marker;
+                }
+            });
+            renderLocationList(allLocations, currentStreamLocationId);
+        } catch (error) { console.error("Error loading map markers:", error); }
+    }
+    async function handleSwitchStream(locationId) {
+        try {
+            const response = await fetch(`/api/streams/switch/${locationId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` }});
+            if (response.ok) { map.closePopup(); }
+            else { const error = await response.json(); alert(`Lỗi khi chuyển luồng: ${error.detail || response.statusText}`); }
+        } catch (error) { console.error("Switch stream error:", error); alert('Lỗi kết nối khi cố gắng chuyển luồng.'); }
+    }
+
+    // --- Reusable Function to create a violation card ---
+    function createViolationCard(violation) {
+        const card = document.createElement('div');
+        card.className = 'violation-card';
+        const timestamp = new Date(violation.timestamp + 'Z').toLocaleString('vi-VN');
+        const locationName = violation.location ? violation.location.name : 'Không xác định';
+        const overviewImage = violation.overview_image_path ? `<a href="/${violation.overview_image_path}" target="_blank" class="image-link"><img src="/${violation.overview_image_path}" alt="Ảnh toàn cảnh"></a>` : '<p>Không có ảnh</p>';
+        const vehicleImage = violation.vehicle_image_path ? `<img src="/${violation.vehicle_image_path}" alt="Ảnh xe vi phạm">` : '<p>Không có ảnh</p>';
+        const plateImage = violation.license_plate_image_path ? `<img src="/${violation.license_plate_image_path}" alt="Ảnh biển số">` : '<p>Không có ảnh</p>';
+        card.innerHTML = `
+            <h3>Biển số: ${violation.license_plate_info || 'Không rõ'}</h3>
+            <p><strong>Thời gian:</strong> ${timestamp}</p>
+            <p><strong>Vị trí:</strong> ${locationName}</p>
+            <div class="image-gallery">
+                <div><span class="image-label">Ảnh Toàn Cảnh (bấm xem to)</span>${overviewImage}</div>
+                <div><span class="image-label">Ảnh Xe Vi Phạm</span>${vehicleImage}</div>
+                <div><span class="image-label">Ảnh Biển Số</span>${plateImage}</div>
+            </div>`;
+        return card;
+    }
+
+    // --- Lookup Logic (giữ nguyên) ---
+    const handleLookup = async () => {
+        const plateNumber = plateInput.value.trim().toUpperCase();
+        if (!plateNumber) { alert('Vui lòng nhập biển số xe.'); return; }
+        const resultsDiv = document.getElementById('lookup-results');
+        resultsDiv.innerHTML = '<p id="lookup-status">Đang tìm kiếm...</p>';
+        try {
+            const token = localStorage.getItem('accessToken');
+            const response = await fetch(`/violations/search/${plateNumber}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!response.ok) {
+                if (response.status === 401) { alert('Phiên đăng nhập đã hết hạn.'); logout(); }
+                throw new Error('Lỗi từ server');
+            }
+            const violations = await response.json();
+            resultsDiv.innerHTML = '';
+            if (violations.length === 0) {
+                resultsDiv.innerHTML = '<p id="lookup-status">Không tìm thấy vi phạm nào cho biển số này.</p>';
+            } else {
+                violations.forEach(v => resultsDiv.appendChild(createViolationCard(v)));
+            }
+        } catch (error) {
+            console.error("Lookup error:", error);
+            resultsDiv.innerHTML = '<p id="lookup-status" style="color: red;">Đã xảy ra lỗi khi tra cứu.</p>';
+        }
+    };
+    lookupButton.addEventListener('click', handleLookup);
+    plateInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleLookup(); });
+
+
+    // --- Thống kê Logic (giữ nguyên) ---
+    function populateLocationFilter() {
+        const locationFilter = document.getElementById('location-filter');
+        while (locationFilter.options.length > 1) { locationFilter.remove(1); }
+        allLocations.forEach(loc => {
+            const option = document.createElement('option');
+            option.value = loc.id;
+            option.textContent = loc.name;
+            locationFilter.appendChild(option);
+        });
+    }
+    function renderViolationList(violationsToRender) {
+        const statsListContainer = document.getElementById('stats-violation-list');
+        statsListContainer.innerHTML = '';
+        if (violationsToRender.length === 0) {
+            statsListContainer.innerHTML = '<p id="stats-status">Không có dữ liệu vi phạm nào phù hợp với bộ lọc.</p>';
+        } else {
+            violationsToRender.forEach(v => statsListContainer.appendChild(createViolationCard(v)));
+        }
+    }
+    function applyFilters() {
+        const locationId = document.getElementById('location-filter').value;
+        const startDateStr = document.getElementById('start-date-filter').value;
+        const endDateStr = document.getElementById('end-date-filter').value;
+        let filteredData = allViolationsData;
+        if (locationId !== 'all') {
+            filteredData = filteredData.filter(v => v.location && v.location.id == locationId);
+        }
+        if (startDateStr) {
+            const startDate = new Date(startDateStr);
+            startDate.setHours(0, 0, 0, 0);
+            filteredData = filteredData.filter(v => new Date(v.timestamp + 'Z') >= startDate);
+        }
+        if (endDateStr) {
+            const endDate = new Date(endDateStr);
+            endDate.setHours(23, 59, 59, 999);
+            filteredData = filteredData.filter(v => new Date(v.timestamp + 'Z') <= endDate);
+        }
+        renderViolationList(filteredData);
+    }
+    async function loadStatistics() {
+        if (!isLoggedIn()) return;
+        const statsListContainer = document.getElementById('stats-violation-list');
+        statsListContainer.innerHTML = '<p id="stats-status">Đang tải dữ liệu...</p>';
+        try {
+            const response = await fetch('/violations/', { headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } });
+            if (!response.ok) throw new Error('Failed to fetch violations');
+            allViolationsData = await response.json();
+            renderViolationList(allViolationsData);
+            renderChart('time');
+        } catch (error) {
+            console.error("Error loading statistics:", error);
+            statsListContainer.innerHTML = '<p id="stats-status" style="color: red;">Lỗi tải dữ liệu thống kê.</p>';
+        }
+    }
+    function renderChart(type) {
+        const ctx = document.getElementById('violations-chart').getContext('2d');
+        if(violationsChart) violationsChart.destroy();
+        let chartLabels, chartData, chartTitle;
+        if (type === 'time') {
+            chartTitle = 'Số vi phạm theo thời gian (30 ngày gần nhất)';
+            const violationsByDate = allViolationsData.reduce((acc, v) => {
+                const date = new Date(v.timestamp + 'Z').toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+                acc[date] = (acc[date] || 0) + 1;
+                return acc;
+            }, {});
+            const sortedDates = Object.entries(violationsByDate).sort((a,b) => new Date(a[0].split('/').reverse().join('-')) - new Date(b[0].split('/').reverse().join('-'))).slice(-30);
+            chartLabels = sortedDates.map(entry => entry[0]);
+            chartData = sortedDates.map(entry => entry[1]);
+        } else if (type === 'location') {
+            chartTitle = 'Tổng số vi phạm theo từng vị trí';
+            const violationsByLocation = allViolationsData.reduce((acc, v) => {
+                const locName = v.location ? v.location.name : "Không xác định";
+                acc[locName] = (acc[locName] || 0) + 1;
+                return acc;
+            }, {});
+            chartLabels = Object.keys(violationsByLocation);
+            chartData = Object.values(violationsByLocation);
+        }
+        violationsChart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: chartLabels, datasets: [{ label: '# Số vi phạm', data: chartData, backgroundColor: 'rgba(52, 152, 219, 0.7)', borderWidth: 1 }] },
+            options: { responsive: true, plugins: { title: { display: true, text: chartTitle, font: {size: 16} } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+        });
+    }
+    chartControls.addEventListener('click', (e) => {
+        if (e.target.matches('.chart-toggle-btn')) {
+            const chartType = e.target.dataset.chart;
+            document.querySelectorAll('.chart-toggle-btn').forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+            renderChart(chartType);
+        }
+    });
+    applyFiltersBtn.addEventListener('click', applyFilters);
+
+    // --- Event Listeners & WebSocket (giữ nguyên) ---
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            const pageId = link.dataset.page;
+            if (link.classList.contains('protected-link') && !isLoggedIn()) {
+                e.preventDefault();
+                alert('Vui lòng đăng nhập để sử dụng chức năng này.');
+                showPage('login');
+                return;
+            }
+            if (link.target !== '_blank' && pageId) { e.preventDefault(); showPage(pageId); }
+        });
+    });
+    document.addEventListener('click', function (event) {
+        const protectedTarget = event.target.closest('.protected-action');
+        if (protectedTarget && !isLoggedIn()) {
+            event.preventDefault();
+            alert('Vui lòng đăng nhập để sử dụng chức năng này.');
+            if (map && map.closePopup) map.closePopup();
+            showPage('login');
+            return;
+        }
+        if (event.target.matches('.btn-listen')) {
+            handleSwitchStream(event.target.dataset.locationId);
+        }
+    });
+    function connectWebSocket() {
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/live`;
+        const socket = new WebSocket(wsUrl);
+        socket.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                if (message.type === 'status_update') {
+                    currentStreamLocationId = message.location_id;
+                    Object.values(mapMarkers).forEach(marker => {
+                        if(marker.locationData) marker.setPopupContent(getPopupContent(marker.locationData, currentStreamLocationId));
+                    });
+                    renderLocationList(allLocations, currentStreamLocationId);
+                }
+            } catch (e) { /* Ignore image data */ }
+        };
+        socket.onopen = () => { console.log("Map page WebSocket connected!"); socket.send(JSON.stringify({ type: "request_current_stream_info" })); };
+        socket.onclose = () => { console.log("Map page WebSocket disconnected. Reconnecting in 5s..."); setTimeout(connectWebSocket, 5000); };
+        socket.onerror = (error) => { console.error("WebSocket error:", error); socket.close(); };
+    }
+
+    // --- Initial Load ---
+    checkLoginStatus();
+    showPage('map');
+    connectWebSocket();
+});
+</script>
+
+</body>
+</html>

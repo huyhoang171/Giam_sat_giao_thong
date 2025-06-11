@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Xem Trực Tiếp | TrafficWatch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --accent-color: #e67e22;
+            --text-color: #ecf0f1;
+            --bg-color: #1a1a1a;
+            --card-bg-color: #2c3e50;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: var(--text-color);
+            overflow: hidden; /* Ngăn cuộn trang */
+        }
+
+        #live-container {
+            display: flex; /* Dùng flexbox để chia 2 cột */
+            width: 95vw; /* Chiếm phần lớn chiều rộng màn hình */
+            max-width: 1400px; /* Giới hạn chiều rộng tối đa */
+            height: 90vh; /* Chiếm phần lớn chiều cao màn hình */
+            max-height: 900px; /* Giới hạn chiều cao tối đa */
+            background-color: var(--card-bg-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 20px; /* Thêm padding tổng thể */
+            box-sizing: border-box;
+            gap: 20px; /* Khoảng cách giữa video và controls */
+        }
+
+        #video-section {
+            flex: 3; /* Chiếm 3 phần không gian */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        #location-name {
+            font-size: 2.2em;
+            color: var(--primary-color);
+            margin-bottom: 0;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+
+        #video-feed-wrapper {
+            position: relative;
+            width: 100%;
+            flex-grow: 1; /* Chiếm hết không gian còn lại trong video-section */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        #live-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            pointer-events: none; /* Rất quan trọng: video không nhận sự kiện chuột */
+        }
+
+        #roi-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            cursor: default;
+            display: none;
+            z-index: 2;
+        }
+
+        #roi-canvas.drawing {
+            pointer-events: auto;
+            cursor: crosshair;
+        }
+
+        #status-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5em;
+            color: #aaa;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 10px 20px;
+            border-radius: 5px;
+            white-space: nowrap;
+            z-index: 1;
+            text-align: center;
+        }
+
+        #status-text button {
+             margin-top: 15px;
+             padding: 8px 16px;
+             font-size: 0.8em;
+        }
+
+
+        #controls-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            background-color: var(--secondary-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            gap: 25px;
+        }
+
+        .control-button {
+            padding: 15px 30px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: white;
+            background-color: var(--accent-color);
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 200px;
+        }
+        .control-button.secondary { background-color: #7f8c8d; }
+        .control-button.secondary:hover { background-color: #95a5a6; }
+        .control-button.active-mode { background-color: var(--primary-color); }
+        .control-button.hidden, .hidden { display: none !important; }
+        .control-button.start-detection { background-color: #27ae60; }
+        .control-button.start-detection:hover { background-color: #219d55; }
+        .control-button.stop-detection { background-color: #e74c3c; }
+        .control-button.stop-detection:hover { background-color: #c0392b; }
+
+
+        .control-button:hover {
+            background-color: #d35400;
+            transform: translateY(-2px);
+        }
+
+        .control-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        #violation-display-section {
+            background-color: var(--secondary-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 15px;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+        }
+        #violation-display-section h3 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        #violation-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        #violation-list li {
+            background-color: #34495e;
+            margin-bottom: 8px;
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            font-size: 0.95em;
+        }
+        #violation-list li span {
+            display: block;
+            margin-bottom: 3px;
+        }
+        #violation-list li .license-plate {
+            font-weight: bold;
+            color: var(--accent-color);
+            font-size: 1.1em;
+        }
+        #violation-list li .timestamp {
+            font-size: 0.85em;
+            color: #bdc3c7;
+        }
+        #violation-list li .location-name {
+            font-size: 0.9em;
+            color: #95a5a6;
+        }
+        #violation-list li .view-image {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        #violation-list li .view-image:hover {
+            text-decoration: underline;
+        }
+        .violation-vehicle-img {
+            width: 100%;
+            height: auto;
+            max-height: 120px;
+            object-fit: contain; /* THAY ĐỔI Ở ĐÂY */
+            border-radius: 4px;
+            margin-top: 8px;
+            background-color: #000; /* Thêm nền đen */
+        }
+
+        @media (max-width: 992px) {
+            #live-container { flex-direction: column; height: 95vh; width: 95vw; padding: 15px; }
+            #video-section { flex: none; height: 70%; }
+            #controls-section { flex: none; flex-direction: row; justify-content: center; height: auto; padding: 15px; gap: 15px; }
+            .control-button { flex: 1; max-width: 150px; }
+            #location-name { font-size: 1.8em; }
+        }
+
+        @media (max-width: 600px) {
+            #location-name { font-size: 1.5em; }
+            #controls-section { flex-wrap: wrap; }
+            .control-button { padding: 10px 15px; font-size: 1em; }
+        }
+    </style>
+</head>
+<body>
+    <div id="live-container">
+        <div id="video-section">
+            <h1 id="location-name">Đang tải thông tin luồng...</h1>
+            <div id="video-feed-wrapper">
+                <img id="live-feed" src="" alt="Connecting to stream...">
+                <canvas id="roi-canvas"></canvas>
+                <p id="status-text">Đang kết nối tới server...</p>
+            </div>
+        </div>
+
+        <div id="controls-section">
+            <button id="up-button" class="control-button">Lên</button>
+            <button id="down-button" class="control-button">Xuống</button>
+            <button id="toggle-roi-button" class="control-button secondary">Hiện/Ẩn ROI</button>
+            <button id="draw-roi-button" class="control-button secondary">Vẽ lại ROI</button>
+            <button id="save-roi-button" class="control-button secondary hidden">Lưu ROI</button>
+            <button id="cancel-draw-button" class="control-button secondary hidden">Hủy vẽ</button>
+
+            <button id="start-detection-button" class="control-button start-detection">Tự động phát hiện lỗi</button>
+            <button id="stop-detection-button" class="control-button stop-detection hidden">Dừng phát hiện</button>
+
+            <div id="violation-display-section" class="hidden">
+                <h3>Vi phạm gần đây</h3>
+                <ul id="violation-list"></ul>
+                <p id="no-violations-message" style="text-align: center; color: #bdc3c7; font-size: 0.9em;">Không có vi phạm nào gần đây.</p>
+            </div>
+        </div>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const liveFeed = document.getElementById('live-feed');
+        const statusText = document.getElementById('status-text');
+        const locationNameH1 = document.getElementById('location-name');
+        const upButton = document.getElementById('up-button');
+        const downButton = document.getElementById('down-button');
+        const roiCanvas = document.getElementById('roi-canvas');
+        const toggleRoiButton = document.getElementById('toggle-roi-button');
+        const drawRoiButton = document.getElementById('draw-roi-button');
+        const saveRoiButton = document.getElementById('save-roi-button');
+        const cancelDrawButton = document.getElementById('cancel-draw-button');
+        const videoWrapper = document.getElementById('video-feed-wrapper');
+        const startDetectionButton = document.getElementById('start-detection-button');
+        const stopDetectionButton = document.getElementById('stop-detection-button');
+        const violationDisplaySection = document.getElementById('violation-display-section');
+        const violationList = document.getElementById('violation-list');
+        const noViolationsMessage = document.getElementById('no-violations-message');
+        const ctx = roiCanvas.getContext('2d');
+
+        let currentRoi = null, isRoiVisible = false, currentVideoWidth = 0, currentVideoHeight = 0;
+        let current_location_id = null, server_ai_detection_enabled = false;
+        let isDrawing = false, startX, startY, currentDrawX, currentDrawY, finalDrawRoiCoords = [];
+        let isAutoDetecting = false, violationFetchInterval;
+        const ESP8266_IP = "192.168.1.100";
+
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/live`;
+        const socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+            console.log("WebSocket connected!");
+            statusText.textContent = "Đã kết nối. Đang chờ hình ảnh...";
+            socket.send(JSON.stringify({ type: "request_current_stream_info" }));
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                if (message.type === 'status_update') {
+                    const name = message.location_name || 'Không xác định';
+                    locationNameH1.textContent = `Trực tiếp tại: ${name}`;
+                    document.title = `Trực tiếp: ${name}`;
+                    current_location_id = message.location_id;
+                    server_ai_detection_enabled = message.ai_detection_enabled;
+                    if (message.violation_roi && message.violation_roi !== 'None') {
+                        currentRoi = message.violation_roi.split(',').map(Number);
+                        if (isRoiVisible) drawRoi(currentRoi);
+                    } else {
+                        currentRoi = null;
+                        clearRoi();
+                    }
+                    if (current_location_id) fetchRoi(current_location_id);
+                    if (server_ai_detection_enabled && !isAutoDetecting) {
+                        startAutoDetectionMode(true);
+                    } else if (!server_ai_detection_enabled && isAutoDetecting) {
+                        stopAutoDetectionMode(true);
+                    }
+                }
+            } catch (e) {
+                liveFeed.src = 'data:image/jpeg;base64,' + event.data;
+                statusText.style.display = 'none';
+                if (liveFeed.naturalWidth !== currentVideoWidth || liveFeed.naturalHeight !== currentVideoHeight) {
+                    currentVideoWidth = liveFeed.naturalWidth;
+                    currentVideoHeight = liveFeed.naturalHeight;
+                    if (isRoiVisible && !isDrawing) drawRoi(currentRoi);
+                }
+            }
+        };
+
+        socket.onclose = (event) => {
+            console.log("WebSocket closed:", event);
+            statusText.innerHTML = `Mất kết nối tới server.<br><button id="retry-btn" class="control-button">Thử lại</button>`;
+            statusText.style.display = 'block';
+            document.getElementById('retry-btn').addEventListener('click', () => { window.location.reload(); });
+            liveFeed.src = "";
+            locationNameH1.textContent = "Đã ngắt kết nối";
+            clearRoi();
+            stopAutoDetectionMode(true);
+        };
+
+        socket.onerror = (error) => {
+            console.error("WebSocket error:", error);
+            statusText.textContent = "Lỗi kết nối WebSocket.";
+            socket.close();
+        };
+
+        async function sendServoCommand(command) {
+            try {
+                const response = await fetch(`http://${ESP8266_IP}/${command}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                console.log(`Servo response for ${command}:`, await response.text());
+            } catch (error) {
+                console.error(`Error sending servo command ${command}:`, error);
+                alert('Lỗi khi gửi lệnh điều khiển servo. Vui lòng kiểm tra địa chỉ IP ESP8266 và kết nối mạng.');
+            }
+        }
+        upButton.addEventListener('click', () => sendServoCommand('up'));
+        downButton.addEventListener('click', () => sendServoCommand('down'));
+
+        async function fetchRoi(locationId) {
+            try {
+                const token = localStorage.getItem('accessToken');
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const response = await fetch(`/api/locations/${locationId}/roi`, { headers });
+                if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) alert('Bạn cần đăng nhập để xem thông tin ROI.');
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                if (data && data.violation_roi && data.violation_roi !== 'None') {
+                    currentRoi = data.violation_roi.split(',').map(Number);
+                    if (isRoiVisible) drawRoi(currentRoi);
+                } else {
+                    currentRoi = null;
+                    clearRoi();
+                }
+            } catch (error) {
+                console.error("Error fetching ROI:", error);
+                currentRoi = null;
+                clearRoi();
+            }
+        }
+
+        function drawRoi(roiToDraw, isTemp = false) {
+            ctx.clearRect(0, 0, roiCanvas.width, roiCanvas.height);
+            if (!roiToDraw || roiToDraw.length !== 4 || (!isRoiVisible && !isTemp) || currentVideoWidth === 0 || currentVideoHeight === 0) {
+                roiCanvas.style.display = 'none';
+                return;
+            }
+            const wrapperWidth = videoWrapper.offsetWidth;
+            const wrapperHeight = videoWrapper.offsetHeight;
+            const imgAspectRatio = currentVideoWidth / currentVideoHeight;
+            const wrapperAspectRatio = wrapperWidth / wrapperHeight;
+            let displayedWidth, displayedHeight, offsetX = 0, offsetY = 0;
+            if (imgAspectRatio > wrapperAspectRatio) {
+                displayedWidth = wrapperWidth;
+                displayedHeight = wrapperWidth / imgAspectRatio;
+                offsetY = (wrapperHeight - displayedHeight) / 2;
+            } else {
+                displayedHeight = wrapperHeight;
+                displayedWidth = wrapperHeight * imgAspectRatio;
+                offsetX = (wrapperWidth - displayedWidth) / 2;
+            }
+            roiCanvas.width = displayedWidth;
+            roiCanvas.height = displayedHeight;
+            roiCanvas.style.left = `${offsetX}px`;
+            roiCanvas.style.top = `${offsetY}px`;
+            roiCanvas.style.display = 'block';
+            ctx.strokeStyle = isTemp ? 'lime' : 'red';
+            ctx.lineWidth = 2;
+            ctx.setLineDash(isTemp ? [] : [5, 5]);
+            let x, y, width, height;
+            if (isTemp) {
+                x = Math.min(roiToDraw[0], roiToDraw[2]);
+                y = Math.min(roiToDraw[1], roiToDraw[3]);
+                width = Math.abs(roiToDraw[2] - roiToDraw[0]);
+                height = Math.abs(roiToDraw[3] - roiToDraw[1]);
+            } else {
+                const scaleX = displayedWidth / currentVideoWidth;
+                const scaleY = displayedHeight / currentVideoHeight;
+                const [x1_orig, y1_orig, x2_orig, y2_orig] = roiToDraw;
+                x = Math.min(x1_orig, x2_orig) * scaleX;
+                y = Math.min(y1_orig, y2_orig) * scaleY;
+                width = Math.abs(x2_orig - x1_orig) * scaleX;
+                height = Math.abs(y2_orig - y1_orig) * scaleY;
+            }
+            ctx.strokeRect(x, y, width, height);
+        }
+
+        function clearRoi() {
+            ctx.clearRect(0, 0, roiCanvas.width, roiCanvas.height);
+            roiCanvas.style.display = 'none';
+        }
+
+        toggleRoiButton.addEventListener('click', () => {
+            if (isAutoDetecting) {
+                alert("Đang ở chế độ tự động phát hiện, không thể thao tác ROI. Vui lòng Dừng phát hiện trước.");
+                return;
+            }
+            isRoiVisible = !isRoiVisible;
+            if (isRoiVisible) drawRoi(currentRoi);
+            else clearRoi();
+            if (isDrawing) cancelDrawing();
+        });
+
+        drawRoiButton.addEventListener('click', () => {
+            if (isAutoDetecting) {
+                alert("Đang ở chế độ tự động phát hiện, không thể thao tác ROI. Vui lòng Dừng phát hiện trước.");
+                return;
+            }
+            if (current_location_id === null) {
+                alert("Vui lòng đợi luồng video tải lên và hiển thị tên vị trí trước khi vẽ ROI.");
+                return;
+            }
+            if (isDrawing) cancelDrawing();
+            else startDrawingMode();
+        });
+
+        saveRoiButton.addEventListener('click', () => {
+            if (finalDrawRoiCoords.length === 4 && current_location_id) {
+                const newRoiString = finalDrawRoiCoords.join(',');
+                saveRoiToServer(current_location_id, newRoiString);
+                currentRoi = finalDrawRoiCoords;
+                isRoiVisible = true;
+                drawRoi(currentRoi);
+                cancelDrawing();
+            } else {
+                alert("Vui lòng vẽ một vùng ROI hợp lệ trước khi lưu.");
+            }
+        });
+
+        cancelDrawButton.addEventListener('click', () => cancelDrawing());
+
+        function startDrawingMode() {
+            if (currentVideoWidth === 0) {
+                alert("Chưa có luồng video để vẽ ROI.");
+                return;
+            }
+            isDrawing = true;
+            isRoiVisible = true;
+            ctx.clearRect(0, 0, roiCanvas.width, roiCanvas.height);
+            roiCanvas.classList.add('drawing');
+            saveRoiButton.classList.remove('hidden');
+            cancelDrawButton.classList.remove('hidden');
+            drawRoiButton.classList.add('active-mode');
+            toggleRoiButton.disabled = true;
+            startX = startY = currentDrawX = currentDrawY = undefined;
+            finalDrawRoiCoords = [];
+        }
+
+        function cancelDrawing() {
+            isDrawing = false;
+            clearRoi();
+            if (isRoiVisible) drawRoi(currentRoi);
+            roiCanvas.classList.remove('drawing');
+            saveRoiButton.classList.add('hidden');
+            cancelDrawButton.classList.add('hidden');
+            drawRoiButton.classList.remove('active-mode');
+            toggleRoiButton.disabled = false;
+            startX = startY = currentDrawX = currentDrawY = undefined;
+            finalDrawRoiCoords = [];
+        }
+
+        roiCanvas.addEventListener('mousedown', (e) => {
+            if (!isDrawing) return;
+            const rect = roiCanvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+            ctx.clearRect(0, 0, roiCanvas.width, roiCanvas.height);
+        });
+
+        roiCanvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing || startX === undefined) return;
+            const rect = roiCanvas.getBoundingClientRect();
+            currentDrawX = e.clientX - rect.left;
+            currentDrawY = e.clientY - rect.top;
+            drawRoi([startX, startY, currentDrawX, currentDrawY], true);
+        });
+
+        roiCanvas.addEventListener('mouseup', () => {
+            if (!isDrawing || startX === undefined) return;
+            isDrawing = false;
+            const x2_display = currentDrawX, y2_display = currentDrawY;
+            const wrapperWidth = videoWrapper.offsetWidth, wrapperHeight = videoWrapper.offsetHeight;
+            const imgAspectRatio = currentVideoWidth / currentVideoHeight, wrapperAspectRatio = wrapperWidth / wrapperHeight;
+            let displayedWidth, displayedHeight;
+            if (imgAspectRatio > wrapperAspectRatio) {
+                displayedWidth = wrapperWidth;
+                displayedHeight = wrapperWidth / imgAspectRatio;
+            } else {
+                displayedHeight = wrapperHeight;
+                displayedWidth = wrapperHeight * imgAspectRatio;
+            }
+            const scaleX_inv = currentVideoWidth / displayedWidth, scaleY_inv = currentVideoHeight / displayedHeight;
+            const oX1 = Math.round(startX * scaleX_inv), oY1 = Math.round(startY * scaleY_inv);
+            const oX2 = Math.round(x2_display * scaleX_inv), oY2 = Math.round(y2_display * scaleY_inv);
+            finalDrawRoiCoords = [
+                Math.max(0, Math.min(currentVideoWidth, Math.min(oX1, oX2))),
+                Math.max(0, Math.min(currentVideoHeight, Math.min(oY1, oY2))),
+                Math.max(0, Math.min(currentVideoWidth, Math.max(oX1, oX2))),
+                Math.max(0, Math.min(currentVideoHeight, Math.max(oY1, oY2)))
+            ];
+            drawRoi(finalDrawRoiCoords);
+            startX = startY = currentDrawX = currentDrawY = undefined;
+        });
+
+        roiCanvas.addEventListener('mouseleave', () => {
+            if (isDrawing && startX !== undefined) {
+                cancelDrawing();
+                alert("Đã hủy vẽ ROI do chuột rời khỏi vùng vẽ.");
+            }
+        });
+
+        async function saveRoiToServer(locationId, roiString) {
+            try {
+                const token = localStorage.getItem('accessToken');
+                if (!token) { alert('Bạn cần đăng nhập để lưu ROI.'); return; }
+                const response = await fetch(`/api/locations/${locationId}/roi`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ violation_roi: roiString })
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    if (response.status === 401 || response.status === 403) {
+                         alert('Phiên làm việc đã hết hạn hoặc bạn không có quyền. Vui lòng đăng nhập lại.');
+                         localStorage.removeItem('accessToken');
+                    }
+                    throw new Error(`Lỗi server: ${response.status} - ${errorData.detail || 'Không xác định'}`);
+                }
+                alert('Vùng ROI đã được lưu thành công!');
+            } catch (error) {
+                console.error("Error saving ROI:", error);
+                alert(`Không thể lưu ROI: ${error.message}`);
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            if (isDrawing) {
+                cancelDrawing();
+                alert("Kích thước cửa sổ thay đổi, chế độ vẽ ROI đã bị hủy. Vui lòng vẽ lại.");
+            } else if (isRoiVisible && currentVideoWidth > 0) {
+                drawRoi(currentRoi);
+            }
+        });
+
+        startDetectionButton.addEventListener('click', () => {
+            if (current_location_id === null) {
+                alert("Vui lòng đợi luồng video tải lên và hiển thị tên vị trí trước khi bắt đầu phát hiện.");
+                return;
+            }
+            startAutoDetectionMode(false);
+        });
+
+        stopDetectionButton.addEventListener('click', () => stopAutoDetectionMode(false));
+
+        async function startAutoDetectionMode(isFromSocket = false) {
+            if (isAutoDetecting && !isFromSocket) return;
+            isAutoDetecting = true;
+            upButton.classList.add('hidden');
+            downButton.classList.add('hidden');
+            toggleRoiButton.classList.add('hidden');
+            drawRoiButton.classList.add('hidden');
+            saveRoiButton.classList.add('hidden');
+            cancelDrawButton.classList.add('hidden');
+            startDetectionButton.classList.add('hidden');
+            clearRoi();
+            stopDetectionButton.classList.remove('hidden');
+            violationDisplaySection.classList.remove('hidden');
+            if (!isFromSocket) {
+                const token = localStorage.getItem('accessToken');
+                if (!token) {
+                    alert('Bạn cần đăng nhập để bật chế độ tự động phát hiện.');
+                    stopAutoDetectionMode(true);
+                    return;
+                }
+                try {
+                    const response = await fetch(`/api/streams/detection_mode/start`, {
+                        method: 'PUT', headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        alert(`Lỗi khi bật chế độ phát hiện trên server: ${errorData.detail || response.statusText}`);
+                        stopAutoDetectionMode(true);
+                        return;
+                    }
+                } catch (error) {
+                    alert('Lỗi kết nối server khi cố gắng bật chế độ phát hiện AI.');
+                    stopAutoDetectionMode(true);
+                    return;
+                }
+            }
+            fetchAndDisplayViolations();
+            if (violationFetchInterval) clearInterval(violationFetchInterval);
+            violationFetchInterval = setInterval(fetchAndDisplayViolations, 5000);
+        }
+
+        async function stopAutoDetectionMode(isFromSocket = false) {
+            if (!isAutoDetecting && !isFromSocket) return;
+            isAutoDetecting = false;
+            upButton.classList.remove('hidden');
+            downButton.classList.remove('hidden');
+            toggleRoiButton.classList.remove('hidden');
+            drawRoiButton.classList.remove('hidden');
+            startDetectionButton.classList.remove('hidden');
+            stopDetectionButton.classList.add('hidden');
+            violationDisplaySection.classList.add('hidden');
+            if (violationFetchInterval) {
+                clearInterval(violationFetchInterval);
+                violationFetchInterval = null;
+            }
+            violationList.innerHTML = '';
+            noViolationsMessage.style.display = 'block';
+            if (!isFromSocket) {
+                const token = localStorage.getItem('accessToken');
+                if (!token) return;
+                try {
+                    await fetch(`/api/streams/detection_mode/stop`, {
+                        method: 'PUT', headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                } catch (error) { console.error("Lỗi kết nối khi tắt chế độ phát hiện AI:", error); }
+            }
+        }
+
+        async function fetchAndDisplayViolations() {
+            if (!isAutoDetecting) return;
+            try {
+                const token = localStorage.getItem('accessToken');
+                if (!token) {
+                    stopAutoDetectionMode(true);
+                    alert('Bạn cần đăng nhập để xem danh sách vi phạm. Vui lòng đăng nhập lại.');
+                    return;
+                }
+                const response = await fetch(`/violations/`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    if (response.status === 401 || response.status === 403) {
+                         alert('Phiên làm việc đã hết hạn hoặc bạn không có quyền xem vi phạm. Vui lòng đăng nhập lại.');
+                         localStorage.removeItem('accessToken');
+                         stopAutoDetectionMode(true);
+                    }
+                    throw new Error(`Lỗi server: ${response.status} - ${errorData.detail || 'Không xác định'}`);
+                }
+                updateViolationList(await response.json());
+            } catch (error) {
+                console.error("Error fetching violations:", error);
+                violationList.innerHTML = `<li style="color: red;">Lỗi tải dữ liệu vi phạm.</li>`;
+                noViolationsMessage.style.display = 'none';
+            }
+        }
+
+        function updateViolationList(violations) {
+            violationList.innerHTML = '';
+            const recentViolations = violations.slice(0, 5);
+            if (recentViolations.length === 0) {
+                noViolationsMessage.style.display = 'block';
+            } else {
+                noViolationsMessage.style.display = 'none';
+                recentViolations.forEach(v => {
+                    const listItem = document.createElement('li');
+                    const timestamp = new Date(v.timestamp + 'Z').toLocaleString('vi-VN');
+                    const plateInfo = v.license_plate_info || 'Không rõ';
+                    const locationName = v.location ? v.location.name : 'Không xác định';
+                    let vehicleImageHTML = '';
+                    if (v.vehicle_image_path) {
+                        vehicleImageHTML = `<img src="/${v.vehicle_image_path}" class="violation-vehicle-img" alt="Ảnh xe vi phạm">`;
+                    }
+                    listItem.innerHTML = `
+                        <span class="license-plate">Biển số: ${plateInfo}</span>
+                        <span class="timestamp">Thời gian: ${timestamp}</span>
+                        <span class="location-name">Vị trí: ${locationName}</span>
+                        <a href="/${v.overview_image_path}" target="_blank" class="view-image">Xem ảnh toàn cảnh</a>
+                        ${vehicleImageHTML}
+                    `;
+                    violationList.appendChild(listItem);
+                });
+            }
+        }
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Xem lại Video</title>
+    <style>
+        body { margin: 0; background-color: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        video { max-width: 100%; max-height: 100%; }
+    </style>
+</head>
+<body>
+    <video id="video-player" controls autoplay>
+        <source id="video-source" src="" type="video/mp4">
+        Trình duyệt của bạn không hỗ trợ thẻ video.
+    </video>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const videoPath = urlParams.get('video_path');
+        const videoSource = document.getElementById('video-source');
+        const videoPlayer = document.getElementById('video-player');
+
+        if (videoPath) {
+            // Đường dẫn trong CSDL là 'static/videos/file.mp4'
+            // Thẻ <video> có thể truy cập trực tiếp qua '/static/videos/file.mp4'
+            videoSource.src = `/${videoPath}`;
+            videoPlayer.load();
+        } else {
+            document.body.innerHTML = "<h1>Lỗi: Không tìm thấy đường dẫn video.</h1>";
+        }
+    });
+</script>
+</body>
+</html>
