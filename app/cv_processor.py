@@ -102,8 +102,8 @@ def get_traffic_light_state(light_image: Optional[np.ndarray]) -> str:
 
 class ViolationDetector:
     def __init__(self,
-                 yolo_model_path: str = "../runs/detect/yolo/best.pt",
-                 lp_model_path: str = "../runs/detect/license_plate/best_model.h5"):
+                 yolo_model_path: str = "runs/detect/yolo/best.pt",
+                 lp_model_path: str = "runs/detect/license_plate/best_model.h5"):
         print("[*] Đang khởi tạo bộ xử lý CV...")
         try:
             print("[*] Đang tải model YOLO lên GPU...")
