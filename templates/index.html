@@ -103,7 +103,7 @@
         .btn-secondary { background-color: var(--secondary-color); }
         .btn-listen { background-color: var(--accent-color); }
         .btn-logout { background-color: var(--danger-color); }
-        input[type="text"], input[type="password"], input[type="date"], select {
+        input[type="text"], input[type="password"], input[type="date"], input[type="number"], select {
              width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 1em; background-color: #fff;
         }
 
@@ -111,7 +111,7 @@
         .map-wrapper { position: relative; height: 75vh; }
         #map-container { height: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         #location-list-container {
-            position: absolute; top: 10px; left: 10px; width: 220px; max-height: 300px;
+            position: absolute; top: 10px; left: 10px; width: 220px; max-height: calc(100% - 20px);
             overflow-y: auto; background-color: rgba(255, 255, 255, 0.9);
             border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 1000; padding: 10px;
         }
@@ -141,7 +141,7 @@
 
 
         /* --- Stats Page --- */
-        #chart-controls { margin-bottom: 20px; display: flex; gap: 10px; }
+        #chart-controls { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
         #chart-controls .chart-toggle-btn { background-color: var(--secondary-color); }
         #chart-controls .chart-toggle-btn.active { background-color: var(--primary-color); font-weight: bold; }
         .filter-controls {
@@ -189,6 +189,18 @@
                     <div id="location-list-container">
                         <h4>Danh sách Vị trí</h4>
                         <ul id="location-list"></ul>
+                        <button id="add-location-btn" class="btn protected-feature hidden" style="width: 100%; margin-top: 10px;">Thêm Vị trí</button>
+                        <div id="add-location-form-container" class="hidden" style="margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 4px; border: 1px solid var(--border-color);">
+                            <p style="font-weight: bold; margin-bottom: 8px;">Thêm Vị trí mới</p>
+                            <input type="text" id="new-loc-name" placeholder="Tên vị trí" style="margin-bottom: 5px;">
+                            <input type="number" step="any" id="new-loc-lat" placeholder="Vĩ độ (Latitude)" style="margin-bottom: 5px;">
+                            <input type="number" step="any" id="new-loc-lon" placeholder="Kinh độ (Longitude)" style="margin-bottom: 5px;">
+                            <div style="display: flex; gap: 5px;">
+                                <button id="save-location-btn" class="btn" style="flex-grow: 1; margin-right: 0;">Lưu</button>
+                                <button id="cancel-add-location-btn" class="btn btn-secondary" style="flex-grow: 1; margin-right: 0;">Hủy</button>
+                            </div>
+                            <p id="add-location-error" style="color: var(--danger-color); font-size: 0.9em; margin-top: 5px; text-align: center;"></p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -212,6 +224,7 @@
                     <div id="chart-controls">
                         <button class="btn chart-toggle-btn active" data-chart="time">Theo Thời gian</button>
                         <button class="btn chart-toggle-btn" data-chart="location">Theo Vị trí</button>
+                        <button class="btn chart-toggle-btn" data-chart="ratio">Tỉ lệ Vi phạm</button>
                     </div>
                     <canvas id="violations-chart"></canvas>
                 </div>
@@ -224,6 +237,16 @@
                                 <option value="all">Tất cả các vị trí</option>
                             </select>
                         </div>
+
+                        <div class="filter-group">
+                            <label for="vehicle-type-filter">Loại xe</label>
+                            <select id="vehicle-type-filter">
+                                <option value="all">Tất cả các loại</option>
+                                <option value="O to">Ô tô</option>
+                                <option value="Xe may">Xe máy</option>
+                            </select>
+                            </div>
+
                         <div class="filter-group">
                             <label for="start-date-filter">Từ ngày</label>
                             <input type="date" id="start-date-filter">
@@ -287,8 +310,15 @@ document.addEventListener('DOMContentLoaded', function () {
     // Thống kê
     const chartControls = document.getElementById('chart-controls');
     const applyFiltersBtn = document.getElementById('apply-filters-btn');
+    // === THÊM DOM ELEMENTS MỚI ===
+    const addLocationBtn = document.getElementById('add-location-btn');
+    const addLocationFormContainer = document.getElementById('add-location-form-container');
+    const saveLocationBtn = document.getElementById('save-location-btn');
+    const cancelAddLocationBtn = document.getElementById('cancel-add-location-btn');
+    const addLocationError = document.getElementById('add-location-error');
 
-    // --- Core Functions (giữ nguyên) ---
+
+    // --- Core Functions ---
     function showPage(pageId) {
         if(document.querySelector(`.nav-link[data-page="${pageId}"]`)?.getAttribute('target') === '_blank') return;
         pages.forEach(p => p.classList.remove('active'));
@@ -298,16 +328,24 @@ document.addEventListener('DOMContentLoaded', function () {
         if (pageId === 'stats' && isLoggedIn() && allViolationsData.length === 0) loadStatistics();
     }
     function updateAuthUI(isUserLoggedIn) {
+        // === THÊM: Lấy danh sách các nút/chức năng cần bảo vệ ===
+        const protectedFeatures = document.querySelectorAll('.protected-feature');
+
         if (isUserLoggedIn) {
             const user = JSON.parse(localStorage.getItem('user'));
             userStatusContainer.innerHTML = `<span>Xin chào, <strong>${user.username}</strong></span> <button id="logout-btn" class="btn btn-logout">Đăng xuất</button>`;
             document.getElementById('logout-btn').addEventListener('click', logout);
             protectedLinks.forEach(link => link.classList.remove('hidden'));
+            protectedFeatures.forEach(el => el.classList.remove('hidden')); // Hiện các nút
         } else {
             userStatusContainer.innerHTML = `<button id="register-btn" class="btn btn-secondary">Đăng ký</button><button id="login-btn" class="btn">Đăng nhập</button>`;
             document.getElementById('login-btn').addEventListener('click', () => showPage('login'));
             document.getElementById('register-btn').addEventListener('click', () => showPage('register'));
             protectedLinks.forEach(link => link.classList.add('hidden'));
+            protectedFeatures.forEach(el => el.classList.add('hidden')); // Ẩn các nút
+            // Đảm bảo form thêm vị trí cũng bị ẩn nếu đang mở
+            addLocationFormContainer.classList.add('hidden');
+
             const activePage = document.querySelector('.page.active')?.id.replace('page-', '');
             if (['lookup', 'stats'].includes(activePage)) showPage('map');
         }
@@ -341,24 +379,22 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (error) { alert('Lỗi kết nối tới server.'); }
     });
 
-    // --- THAY ĐỔI: Cập nhật logic Form Đăng ký ---
     registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const username = document.getElementById('reg-username').value;
         const password = document.getElementById('reg-password').value;
         const confirmPassword = document.getElementById('reg-password-confirm').value;
 
-        // Kiểm tra mật khẩu khớp nhau
         if (password !== confirmPassword) {
             alert('Mật khẩu nhập lại không khớp. Vui lòng thử lại.');
-            return; // Dừng thực thi nếu không khớp
+            return;
         }
 
         try {
             const response = await fetch('/register/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password }) // Chỉ gửi username và password
+                body: JSON.stringify({ username, password })
             });
             if (response.ok) {
                 alert('Đăng ký thành công! Vui lòng đăng nhập.');
@@ -376,11 +412,12 @@ document.addEventListener('DOMContentLoaded', function () {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('user');
         allViolationsData = [];
+        allLocations = [];
         updateAuthUI(false);
         showPage('map');
     }
 
-    // --- Map Logic (giữ nguyên) ---
+    // --- Map Logic ---
     function initMap() {
         if(map) return;
         map = L.map('map-container').setView([16.0544, 108.2022], 13);
@@ -388,8 +425,9 @@ document.addEventListener('DOMContentLoaded', function () {
         loadMapMarkers();
     }
     function getPopupContent(location, activeStreamId) {
-        const watchLiveButton = `<a href="/live" target="_blank" class="btn protected-action">Xem trực tiếp</a>`;
-        const listenButton = `<button class="btn btn-listen protected-action" data-location-id="${location.id}">Lắng nghe</button>`;
+        // === CẬP NHẬT: Thêm class `protected-feature` cho các nút cần đăng nhập ===
+        const watchLiveButton = `<a href="/live" target="_blank" class="btn protected-feature">Xem trực tiếp</a>`;
+        const listenButton = `<button class="btn btn-listen protected-feature" data-location-id="${location.id}">Lắng nghe</button>`;
         const recordingsButton = `<a href="/recordings?location_id=${location.id}" target="_blank" class="btn btn-secondary">Xem lại</a>`;
         return `<b>${location.name}</b><div class="popup-buttons">${location.id === activeStreamId ? watchLiveButton : listenButton}${recordingsButton}</div>`;
     }
@@ -430,12 +468,52 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (error) { console.error("Error loading map markers:", error); }
     }
     async function handleSwitchStream(locationId) {
+        if (!isLoggedIn()) { alert("Vui lòng đăng nhập."); return; }
         try {
             const response = await fetch(`/api/streams/switch/${locationId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` }});
             if (response.ok) { map.closePopup(); }
             else { const error = await response.json(); alert(`Lỗi khi chuyển luồng: ${error.detail || response.statusText}`); }
         } catch (error) { console.error("Switch stream error:", error); alert('Lỗi kết nối khi cố gắng chuyển luồng.'); }
     }
+    // === THÊM LOGIC ĐỂ LƯU VỊ TRÍ MỚI ===
+    async function handleSaveLocation() {
+        const name = document.getElementById('new-loc-name').value.trim();
+        const lat = document.getElementById('new-loc-lat').value;
+        const lon = document.getElementById('new-loc-lon').value;
+        addLocationError.textContent = '';
+
+        if (!name || !lat || !lon) {
+            addLocationError.textContent = 'Vui lòng điền đủ thông tin.';
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/locations/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+                },
+                body: JSON.stringify({
+                    name: name,
+                    latitude: parseFloat(lat),
+                    longitude: parseFloat(lon)
+                })
+            });
+
+            if (response.status === 201) {
+                cancelAddLocationBtn.click(); // Ẩn form và xóa input
+                await loadMapMarkers();      // Tải lại marker trên bản đồ
+            } else {
+                const error = await response.json();
+                addLocationError.textContent = `Lỗi: ${error.detail || 'Không thể lưu vị trí.'}`;
+            }
+        } catch (error) {
+            console.error('Save location error:', error);
+            addLocationError.textContent = 'Lỗi kết nối đến máy chủ.';
+        }
+    }
+
 
     // --- Reusable Function to create a violation card ---
     function createViolationCard(violation) {
@@ -443,13 +521,17 @@ document.addEventListener('DOMContentLoaded', function () {
         card.className = 'violation-card';
         const timestamp = new Date(violation.timestamp + 'Z').toLocaleString('vi-VN');
         const locationName = violation.location ? violation.location.name : 'Không xác định';
+        const vehicleType = violation.vehicle_type ? violation.vehicle_type : 'Không xác định';
+
         const overviewImage = violation.overview_image_path ? `<a href="/${violation.overview_image_path}" target="_blank" class="image-link"><img src="/${violation.overview_image_path}" alt="Ảnh toàn cảnh"></a>` : '<p>Không có ảnh</p>';
         const vehicleImage = violation.vehicle_image_path ? `<img src="/${violation.vehicle_image_path}" alt="Ảnh xe vi phạm">` : '<p>Không có ảnh</p>';
         const plateImage = violation.license_plate_image_path ? `<img src="/${violation.license_plate_image_path}" alt="Ảnh biển số">` : '<p>Không có ảnh</p>';
+
         card.innerHTML = `
             <h3>Biển số: ${violation.license_plate_info || 'Không rõ'}</h3>
             <p><strong>Thời gian:</strong> ${timestamp}</p>
             <p><strong>Vị trí:</strong> ${locationName}</p>
+            <p><strong>Loại phương tiện:</strong> ${vehicleType}</p>
             <div class="image-gallery">
                 <div><span class="image-label">Ảnh Toàn Cảnh (bấm xem to)</span>${overviewImage}</div>
                 <div><span class="image-label">Ảnh Xe Vi Phạm</span>${vehicleImage}</div>
@@ -458,7 +540,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return card;
     }
 
-    // --- Lookup Logic (giữ nguyên) ---
+    // --- Lookup Logic ---
     const handleLookup = async () => {
         const plateNumber = plateInput.value.trim().toUpperCase();
         if (!plateNumber) { alert('Vui lòng nhập biển số xe.'); return; }
@@ -487,7 +569,7 @@ document.addEventListener('DOMContentLoaded', function () {
     plateInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleLookup(); });
 
 
-    // --- Thống kê Logic (giữ nguyên) ---
+    // --- Thống kê Logic ---
     function populateLocationFilter() {
         const locationFilter = document.getElementById('location-filter');
         while (locationFilter.options.length > 1) { locationFilter.remove(1); }
@@ -509,12 +591,20 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     function applyFilters() {
         const locationId = document.getElementById('location-filter').value;
+        const vehicleType = document.getElementById('vehicle-type-filter').value;
         const startDateStr = document.getElementById('start-date-filter').value;
         const endDateStr = document.getElementById('end-date-filter').value;
+
         let filteredData = allViolationsData;
+
         if (locationId !== 'all') {
             filteredData = filteredData.filter(v => v.location && v.location.id == locationId);
         }
+
+        if (vehicleType !== 'all') {
+            filteredData = filteredData.filter(v => v.vehicle_type === vehicleType);
+        }
+
         if (startDateStr) {
             const startDate = new Date(startDateStr);
             startDate.setHours(0, 0, 0, 0);
@@ -532,11 +622,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const statsListContainer = document.getElementById('stats-violation-list');
         statsListContainer.innerHTML = '<p id="stats-status">Đang tải dữ liệu...</p>';
         try {
+            if (allLocations.length === 0) {
+                await loadMapMarkers();
+            }
             const response = await fetch('/violations/', { headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } });
             if (!response.ok) throw new Error('Failed to fetch violations');
             allViolationsData = await response.json();
             renderViolationList(allViolationsData);
-            renderChart('time');
+            renderChart(document.querySelector('.chart-toggle-btn.active').dataset.chart);
         } catch (error) {
             console.error("Error loading statistics:", error);
             statsListContainer.innerHTML = '<p id="stats-status" style="color: red;">Lỗi tải dữ liệu thống kê.</p>';
@@ -546,6 +639,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const ctx = document.getElementById('violations-chart').getContext('2d');
         if(violationsChart) violationsChart.destroy();
         let chartLabels, chartData, chartTitle;
+
         if (type === 'time') {
             chartTitle = 'Số vi phạm theo thời gian (30 ngày gần nhất)';
             const violationsByDate = allViolationsData.reduce((acc, v) => {
@@ -556,6 +650,13 @@ document.addEventListener('DOMContentLoaded', function () {
             const sortedDates = Object.entries(violationsByDate).sort((a,b) => new Date(a[0].split('/').reverse().join('-')) - new Date(b[0].split('/').reverse().join('-'))).slice(-30);
             chartLabels = sortedDates.map(entry => entry[0]);
             chartData = sortedDates.map(entry => entry[1]);
+
+            violationsChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: chartLabels, datasets: [{ label: '# Số vi phạm', data: chartData, backgroundColor: 'rgba(52, 152, 219, 0.7)', borderWidth: 1 }] },
+                options: { responsive: true, plugins: { title: { display: true, text: chartTitle, font: {size: 16} } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+            });
+
         } else if (type === 'location') {
             chartTitle = 'Tổng số vi phạm theo từng vị trí';
             const violationsByLocation = allViolationsData.reduce((acc, v) => {
@@ -565,12 +666,75 @@ document.addEventListener('DOMContentLoaded', function () {
             }, {});
             chartLabels = Object.keys(violationsByLocation);
             chartData = Object.values(violationsByLocation);
+
+            violationsChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: chartLabels, datasets: [{ label: '# Số vi phạm', data: chartData, backgroundColor: 'rgba(26, 188, 156, 0.7)', borderWidth: 1 }] },
+                options: { responsive: true, plugins: { title: { display: true, text: chartTitle, font: {size: 16} } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+            });
+
+        } else if (type === 'ratio') {
+            chartTitle = 'Tỉ lệ Vi phạm trên Tổng số xe theo Vị trí (%)';
+            const violationsByLocationId = allViolationsData.reduce((acc, v) => {
+                const locId = v.location ? v.location.id : null;
+                if (locId) { acc[locId] = (acc[locId] || 0) + 1; }
+                return acc;
+            }, {});
+
+            const chartDataPoints = allLocations
+                .map(loc => {
+                    const totalVehicles = loc.detected_vehicles_count || 0;
+                    const totalViolations = violationsByLocationId[loc.id] || 0;
+                    const ratio = totalVehicles > 0 ? (totalViolations / totalVehicles) * 100 : 0;
+                    return {
+                        name: loc.name,
+                        ratio: ratio,
+                        totalVehicles: totalVehicles,
+                        totalViolations: totalViolations
+                    };
+                })
+                .filter(item => item.totalVehicles > 0 || item.totalViolations > 0);
+
+            chartLabels = chartDataPoints.map(p => p.name);
+            chartData = chartDataPoints.map(p => p.ratio);
+
+            violationsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        label: '% Tỉ lệ vi phạm',
+                        data: chartData,
+                        backgroundColor: 'rgba(230, 126, 34, 0.7)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: chartTitle, font: { size: 16 } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const pointIndex = context.dataIndex;
+                                    const point = chartDataPoints[pointIndex];
+                                    const ratioLabel = `Tỉ lệ: ${point.ratio.toFixed(2)}%`;
+                                    const violationLabel = `Số vi phạm: ${point.totalViolations}`;
+                                    const vehicleLabel = `Tổng số xe: ${point.totalVehicles}`;
+                                    return [ratioLabel, violationLabel, vehicleLabel];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: function(value) { return value + '%' } }
+                        }
+                    }
+                }
+            });
         }
-        violationsChart = new Chart(ctx, {
-            type: 'bar',
-            data: { labels: chartLabels, datasets: [{ label: '# Số vi phạm', data: chartData, backgroundColor: 'rgba(52, 152, 219, 0.7)', borderWidth: 1 }] },
-            options: { responsive: true, plugins: { title: { display: true, text: chartTitle, font: {size: 16} } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
-        });
     }
     chartControls.addEventListener('click', (e) => {
         if (e.target.matches('.chart-toggle-btn')) {
@@ -582,7 +746,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     applyFiltersBtn.addEventListener('click', applyFilters);
 
-    // --- Event Listeners & WebSocket (giữ nguyên) ---
+    // --- Event Listeners & WebSocket ---
     navLinks.forEach(link => {
         link.addEventListener('click', (e) => {
             const pageId = link.dataset.page;
@@ -596,18 +760,29 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
     document.addEventListener('click', function (event) {
-        const protectedTarget = event.target.closest('.protected-action');
-        if (protectedTarget && !isLoggedIn()) {
-            event.preventDefault();
-            alert('Vui lòng đăng nhập để sử dụng chức năng này.');
-            if (map && map.closePopup) map.closePopup();
-            showPage('login');
-            return;
-        }
         if (event.target.matches('.btn-listen')) {
-            handleSwitchStream(event.target.dataset.locationId);
+             handleSwitchStream(event.target.dataset.locationId);
         }
     });
+
+    // === THÊM EVENT LISTENERS CHO FORM MỚI ===
+    addLocationBtn.addEventListener('click', () => {
+        addLocationFormContainer.classList.remove('hidden');
+        addLocationBtn.classList.add('hidden');
+        addLocationError.textContent = '';
+    });
+    cancelAddLocationBtn.addEventListener('click', () => {
+        addLocationFormContainer.classList.add('hidden');
+        if(isLoggedIn()) addLocationBtn.classList.remove('hidden');
+        // Xóa nội dung input
+        document.getElementById('new-loc-name').value = '';
+        document.getElementById('new-loc-lat').value = '';
+        document.getElementById('new-loc-lon').value = '';
+        addLocationError.textContent = '';
+    });
+    saveLocationBtn.addEventListener('click', handleSaveLocation);
+
+
     function connectWebSocket() {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${wsProtocol}//${window.location.host}/ws/live`;
@@ -622,7 +797,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
                     renderLocationList(allLocations, currentStreamLocationId);
                 }
-            } catch (e) { /* Ignore image data */ }
+            } catch (e) { /* Bỏ qua dữ liệu ảnh */ }
         };
         socket.onopen = () => { console.log("Map page WebSocket connected!"); socket.send(JSON.stringify({ type: "request_current_stream_info" })); };
         socket.onclose = () => { console.log("Map page WebSocket disconnected. Reconnecting in 5s..."); setTimeout(connectWebSocket, 5000); };

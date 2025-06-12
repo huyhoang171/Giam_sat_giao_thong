@@ -64,11 +64,14 @@ def create_location(db: Session, location: schemas.LocationCreate):
     """
     Tạo một vị trí giám sát mới, bao gồm cả tọa độ.
     """
+    # === CẬP NHẬT: Thêm các trường còn thiếu để đồng bộ với schema ===
     db_location = models.Location(
         name=location.name,
         violation_roi=location.violation_roi,
+        detection_roi=location.detection_roi,
         latitude=location.latitude,
         longitude=location.longitude,
+        detected_vehicles_count=location.detected_vehicles_count
     )
     db.add(db_location)
     db.commit()
@@ -87,6 +90,17 @@ def update_location_roi(db: Session, location_id: int, new_roi: str):
         db.refresh(db_location)
     return db_location
 
+# === TẠO HÀM MỚI ĐỂ CẬP NHẬT DETECTION_ROI ===
+def update_location_detection_roi(db: Session, location_id: int, new_roi: str):
+    """
+    Cập nhật vùng NHẬN DIỆN (detection_roi) cho một vị trí cụ thể.
+    """
+    db_location = db.query(models.Location).filter(models.Location.id == location_id).first()
+    if db_location:
+        db_location.detection_roi = new_roi
+        db.commit()
+        db.refresh(db_location)
+    return db_location
 
 # --- Violation CRUD: Các hàm xử lý các trường hợp vi phạm ---
 
@@ -107,6 +121,7 @@ def create_violation(db: Session, violation: schemas.ViolationCreate, location_i
     """
     db_violation = models.Violation(
         license_plate_info=violation.license_plate_info,
+        vehicle_type=violation.vehicle_type,  # <--- THÊM DÒNG NÀY
         overview_image_path=violation.overview_image_path,
         vehicle_image_path=violation.vehicle_image_path,
         license_plate_image_path=violation.license_plate_image_path,
@@ -160,3 +175,18 @@ def get_videos_by_location_id(db: Session, location_id: int, skip: int = 0, limi
     return db.query(models.VideoRecording).filter(
         models.VideoRecording.location_id == location_id
     ).order_by(models.VideoRecording.timestamp.desc()).offset(skip).limit(limit).all()
+
+# === HÀM MỚI CẦN THÊM ===
+def increment_detected_vehicles_count(db: Session, location_id: int, count_to_add: int):
+    """
+    Tăng số lượng xe đã phát hiện cho một vị trí.
+    Đây là cách an toàn hơn để cập nhật bộ đếm trong môi trường có thể có nhiều tiến trình.
+    """
+    location = db.query(models.Location).filter(models.Location.id == location_id).first()
+    if location and count_to_add > 0:
+        # Đảm bảo giá trị hiện tại không phải là None trước khi cộng
+        current_count = location.detected_vehicles_count or 0
+        location.detected_vehicles_count = current_count + count_to_add
+        db.commit()
+        db.refresh(location)
+    return location

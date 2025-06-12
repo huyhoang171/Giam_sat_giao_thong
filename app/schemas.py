@@ -56,11 +56,14 @@ class LocationBase(BaseModel):
     Schema cơ bản cho vị trí, chứa các thông tin cần thiết khi tạo.
     """
     name: str
-    violation_roi: str  # Ví dụ: "100,300,750,550"
+    violation_roi: Optional[str] = None
+    # === THÊM DÒNG MỚI ===
+    detection_roi: Optional[str] = None  # Ví dụ: "100,200,750,300"
 
     # === THÊM 2 DÒNG MỚI ===
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    detected_vehicles_count: int = 0
 
 
 class LocationCreate(LocationBase):
@@ -125,6 +128,10 @@ class ViolationBase(BaseModel):
     Schema cơ bản cho một vi phạm, chứa các đường dẫn tới ảnh bằng chứng.
     """
     license_plate_info: Optional[str] = None
+
+    # === DÒNG MỚI CẦN THÊM ===
+    vehicle_type: Optional[str] = None  # Thêm trường loại xe
+
     overview_image_path: str
     vehicle_image_path: str
     license_plate_image_path: str
