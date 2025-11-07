@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300">
+  <rect width="1200" height="300" fill="#1a1a1a" rx="12"/>
+  <text x="50%" y="30%" dominant-baseline="middle" text-anchor="middle" fill="#ecf0f1" font-family="Arial, Helvetica, sans-serif" font-size="28">Traffic Red-Light Violation Detection</text>
+  <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="#bdc3c7" font-family="Arial, Helvetica, sans-serif" font-size="18">Real-time pipeline: camera → detection → tracking → violation logging</text>
+  <g transform="translate(60,180)">
+    <rect x="0" y="0" width="200" height="60" rx="8" fill="#3498db" />
+    <text x="100" y="36" fill="#fff" text-anchor="middle" font-size="14">Camera / Pi</text>
+    <rect x="260" y="0" width="200" height="60" rx="8" fill="#e67e22" />
+    <text x="360" y="36" fill="#fff" text-anchor="middle" font-size="14">YOLO Detection</text>
+    <rect x="520" y="0" width="200" height="60" rx="8" fill="#2ecc71" />
+    <text x="620" y="36" fill="#fff" text-anchor="middle" font-size="14">DeepSORT Tracker</text>
+    <rect x="780" y="0" width="200" height="60" rx="8" fill="#9b59b6" />
+    <text x="880" y="36" fill="#fff" text-anchor="middle" font-size="14">Violation Logic</text>
+  </g>
+</svg>

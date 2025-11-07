@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="220" viewBox="0 0 1000 220">
+  <rect width="1000" height="220" fill="#111" rx="12"/>
+  <text x="50%" y="20" dominant-baseline="middle" text-anchor="middle" fill="#ecf0f1" font-family="Arial" font-size="20">Detection Pipeline</text>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ecf0f1"/>
+    </marker>
+  </defs>
+  <g font-family="Arial" font-size="13" fill="#fff">
+    <rect x="40" y="60" width="160" height="60" rx="8" fill="#2980b9"/>
+    <text x="120" y="95" text-anchor="middle">Frame Ingest</text>
+
+    <rect x="260" y="60" width="160" height="60" rx="8" fill="#d35400"/>
+    <text x="340" y="95" text-anchor="middle">Object Detection</text>
+
+    <rect x="480" y="60" width="160" height="60" rx="8" fill="#16a085"/>
+    <text x="560" y="95" text-anchor="middle">Tracking</text>
+
+    <rect x="700" y="60" width="160" height="60" rx="8" fill="#8e44ad"/>
+    <text x="780" y="95" text-anchor="middle">Violation Logic</text>
+
+    <line x1="200" y1="90" x2="260" y2="90" stroke="#ecf0f1" stroke-width="2" marker-end="url(#arrow)"/>
+    <line x1="420" y1="90" x2="480" y2="90" stroke="#ecf0f1" stroke-width="2" marker-end="url(#arrow)"/>
+    <line x1="640" y1="90" x2="700" y2="90" stroke="#ecf0f1" stroke-width="2" marker-end="url(#arrow)"/>
+  </g>
+</svg>
