@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="200" viewBox="0 0 900 200">
+  <rect width="900" height="200" fill="#0f1720" rx="12"/>
+  <text x="50%" y="28" dominant-baseline="middle" text-anchor="middle" fill="#ecf0f1" font-family="Arial" font-size="18">Pi Simulator (emulates camera input)</text>
+  <g transform="translate(80,70)">
+    <rect x="0" y="0" width="240" height="60" rx="8" fill="#34495e"/>
+    <text x="120" y="36" fill="#ecf0f1" text-anchor="middle" font-size="13">Local Video / Images</text>
+
+    <rect x="320" y="0" width="240" height="60" rx="8" fill="#e67e22"/>
+    <text x="440" y="36" fill="#fff" text-anchor="middle" font-size="13">Simulator Script</text>
+
+    <rect x="640" y="0" width="160" height="60" rx="8" fill="#27ae60"/>
+    <text x="720" y="36" fill="#fff" text-anchor="middle" font-size="13">Server Socket</text>
+
+    <line x1="240" y1="30" x2="320" y2="30" stroke="#ecf0f1" stroke-width="2" marker-end="url(#arrow)"/>
+    <line x1="560" y1="30" x2="640" y2="30" stroke="#ecf0f1" stroke-width="2" marker-end="url(#arrow)"/>
+  </g>
+</svg>
