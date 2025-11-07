@@ -137,13 +137,6 @@ Notes:
 - For local development, running the server and using pre-recorded video files is a fast way to iterate on detection logic.
 - Add tests for the CV pipeline for reproducible debugging (frame-level unit tests for ROI mapping, direction check, and violation decision logic).
 
-## License & Contact
-
-This project currently does not include a license file in the repository. Add one if you plan to open-source the code. For questions contact the repository owner or maintainers.
-
----
-
-If you'd like, I can also add a short Getting Started guide specific to your environment (Windows commands, Dockerfile, or deployment instructions).
 
 ## Screenshots
 
